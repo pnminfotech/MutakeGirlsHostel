@@ -29,6 +29,7 @@ const LightBillEntrySchema = new mongoose.Schema({
   roomNo: { type: String },
   meterNo: { type: String },
   totalReading: { type: Number },
+  pricePerUnit: { type: Number },
   amount: { type: Number },
   salary: { type: Number },
   customLabel: { type: String },

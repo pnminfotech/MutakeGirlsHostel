@@ -178,6 +178,20 @@ firstRentMonth: { type: String }, // e.g. "Jan-26"
           // default: "Cash",
           required: true,
         },
+        payments: {
+          type: [
+            {
+              amount: { type: Number, default: 0 },
+              date: { type: Date, default: Date.now },
+              paymentMode: {
+                type: String,
+                enum: ["Cash", "Online"],
+                default: "Cash",
+              },
+            },
+          ],
+          default: [],
+        },
         default: [],
       },
       
@@ -247,6 +261,23 @@ firstRentMonth: { type: String }, // e.g. "Jan-26"
             default: "due",
           },
           createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    roomShopLightBillHistory: {
+      type: [
+        {
+          month: { type: String, required: true },
+          totalReading: { type: Number, default: 0 },
+          pricePerUnit: { type: Number, default: 0 },
+          amount: { type: Number, default: 0 },
+          status: {
+            type: String,
+            enum: ["paid", "pending", "due", "upcoming"],
+            default: "pending",
+          },
+          updatedAt: { type: Date, default: Date.now },
         },
       ],
       default: [],

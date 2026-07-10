@@ -366,18 +366,31 @@ const normalizeRentEntry = (rent, fallbackDate) => {
   const rawDate = rent?.date ? new Date(rent.date) : new Date(fallbackDate);
   const safeDate = Number.isNaN(rawDate.getTime()) ? new Date() : rawDate;
   const safeMonth = normalizeRentMonth(rent?.month, safeDate);
+  const payments = Array.isArray(rent?.payments)
+    ? rent.payments
+        .map((payment) => {
+          const paymentDate = payment?.date ? new Date(payment.date) : safeDate;
+          return {
+            amount: Number(payment?.amount) || 0,
+            date: Number.isNaN(paymentDate.getTime()) ? safeDate : paymentDate,
+            paymentMode: payment?.paymentMode || rent?.paymentMode || "Cash",
+          };
+        })
+        .filter((payment) => payment.amount > 0)
+    : [];
 
   return {
     rentAmount: Number(rent?.rentAmount) || 0,
     date: safeDate,
     month: safeMonth,
     paymentMode: rent?.paymentMode || "Cash",
+    payments,
   };
 };
 
 const updateForm = async (req, res) => {
   const { id } = req.params;
-  const { rentAmount, date, month, paymentMode, rentUpdateMode } = req.body;
+  const { rentAmount, date, month, paymentMode, rentUpdateMode, roomShopLightBillHistory } = req.body;
   const resolvedMonth = normalizeRentMonth(month, date);
   const resolvedDate = new Date(date);
 
@@ -407,11 +420,45 @@ const updateForm = async (req, res) => {
 
     if (rentIndex !== -1) {
       const existingAmount = Number(normalizedRents[rentIndex]?.rentAmount) || 0;
+      const existingPayments = Array.isArray(normalizedRents[rentIndex]?.payments)
+        ? [...normalizedRents[rentIndex].payments]
+        : [];
+      const seedPayments =
+        existingPayments.length || existingAmount <= 0
+          ? existingPayments
+          : [
+              {
+                amount: existingAmount,
+                date: normalizedRents[rentIndex].date,
+                paymentMode: normalizedRents[rentIndex].paymentMode || "Cash",
+              },
+            ];
+      const nextPayments = shouldReplace
+        ? []
+        : seedPayments;
+      if (incomingAmount > 0) {
+        nextPayments.push({
+          amount: incomingAmount,
+          date: resolvedDate,
+          paymentMode: paymentMode || "Cash",
+        });
+      }
       normalizedRents[rentIndex] = {
         rentAmount: shouldReplace ? incomingAmount : existingAmount + incomingAmount,
         date: resolvedDate,
         month: resolvedMonth,
         paymentMode: paymentMode || "Cash",
+        payments: shouldReplace && incomingAmount <= 0
+          ? []
+          : shouldReplace
+          ? [
+              {
+                amount: incomingAmount,
+                date: resolvedDate,
+                paymentMode: paymentMode || "Cash",
+              },
+            ]
+          : nextPayments,
       };
     } else {
       normalizedRents.push({
@@ -419,10 +466,23 @@ const updateForm = async (req, res) => {
         date: resolvedDate,
         month: resolvedMonth,
         paymentMode: paymentMode || "Cash",
+        payments:
+          incomingAmount > 0
+            ? [
+                {
+                  amount: incomingAmount,
+                  date: resolvedDate,
+                  paymentMode: paymentMode || "Cash",
+                },
+              ]
+            : [],
       });
     }
 
     form.rents = normalizedRents;
+    if (Array.isArray(roomShopLightBillHistory)) {
+      form.roomShopLightBillHistory = roomShopLightBillHistory;
+    }
     await form.save({ validateModifiedOnly: true });
 
     let rentReceiptStatus = { ok: false, skipped: true, reason: "Not attempted" };
