@@ -25,8 +25,18 @@ function inferTrackerType(source = {}) {
   return "bed";
 }
 
+function shouldSendAdmissionSms(formLike) {
+  const propertyType = String(
+    formLike?.propertyType || formLike?.trackerType || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return propertyType !== "room" && propertyType !== "shop";
+}
+
 function tenantIntakePath() {
-  return "/hosteldemo/tenant-intake";
+  return "/mutakegirlshostel/tenant-intake";
 }
 
 async function assignNextSrNoAndUpdateCounter() {
@@ -350,18 +360,24 @@ router.put("/:token/submit", async (req, res) => {
       { new: true }
     );
 
-    let messageStatus = { ok: false, skipped: true, reason: "Not attempted" };
-    try {
-      messageStatus = await sendAdmissionMessage(updated);
-    } catch (error) {
-      console.error("MSG91 admission message failed:", error?.data || error?.message || error);
-      messageStatus = {
-        ok: false,
-        skipped: false,
-        reason: error?.message || "MSG91 send failed",
-        data: error?.data || null,
-        status: error?.status || null,
-      };
+    let messageStatus = {
+      ok: false,
+      skipped: true,
+      reason: "SMS disabled for room/shop admissions",
+    };
+    if (shouldSendAdmissionSms(updated)) {
+      try {
+        messageStatus = await sendAdmissionMessage(updated);
+      } catch (error) {
+        console.error("MSG91 admission message failed:", error?.data || error?.message || error);
+        messageStatus = {
+          ok: false,
+          skipped: false,
+          reason: error?.message || "MSG91 send failed",
+          data: error?.data || null,
+          status: error?.status || null,
+        };
+      }
     }
 
     return res.json({

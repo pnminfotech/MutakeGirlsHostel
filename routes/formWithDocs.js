@@ -40,6 +40,12 @@ const MIN_WIDTH = 1200; // keep text readable for IDs
 const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
 const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
 
+function normalizeTrackerType(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw === "room" || raw === "shop") return raw;
+  return "bed";
+}
+
 function isAllowedImageFile(file) {
   if (!file) return false;
 
@@ -127,6 +133,16 @@ function isActiveBedTenant(tenant, category) {
   return leaveDate > today;
 }
 
+function shouldSendAdmissionSms(formLike) {
+  const propertyType = String(
+    formLike?.propertyType || formLike?.trackerType || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return propertyType !== "room" && propertyType !== "shop";
+}
+
 router.post("/forms-with-docs", upload.array("documents", 10), async (req, res) => {
   try {
     const body = req.body || {};
@@ -161,8 +177,12 @@ const firstRentMonth = String(body.firstRentMonth || rentMonth).trim();
     }
 
     const imagekit = getImageKit();
+    const propertyType = normalizeTrackerType(
+      body.propertyType || body.trackerType
+    );
 
     const formPayload = {
+      propertyType,
       name: body.name,
       joiningDate,
       roomId: body.roomId ? String(body.roomId).trim() : undefined,
@@ -267,7 +287,7 @@ firstRentMonth: body.firstRentMonth,
       const uploadRes = await imagekit.upload({
         file: uploadBuffer,
         fileName: uploadName,
-        folder: "/hosteldemo/docs",
+        folder: "/mutakegirlshostel/docs",
         useUniqueFileName: true,
       });
 
@@ -364,18 +384,24 @@ const created = await Form.create({
   documents: docs,
 });
 
-    let messageStatus = { ok: false, skipped: true, reason: "Not attempted" };
-    try {
-      messageStatus = await sendAdmissionMessage(created);
-    } catch (error) {
-      console.error("MSG91 admission message failed:", error?.data || error?.message || error);
-      messageStatus = {
-        ok: false,
-        skipped: false,
-        reason: error?.message || "MSG91 send failed",
-        data: error?.data || null,
-        status: error?.status || null,
-      };
+    let messageStatus = {
+      ok: false,
+      skipped: true,
+      reason: "SMS disabled for room/shop admissions",
+    };
+    if (shouldSendAdmissionSms(created)) {
+      try {
+        messageStatus = await sendAdmissionMessage(created);
+      } catch (error) {
+        console.error("MSG91 admission message failed:", error?.data || error?.message || error);
+        messageStatus = {
+          ok: false,
+          skipped: false,
+          reason: error?.message || "MSG91 send failed",
+          data: error?.data || null,
+          status: error?.status || null,
+        };
+      }
     }
 
     return res.status(201).json({

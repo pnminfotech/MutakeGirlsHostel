@@ -153,6 +153,16 @@ function normalizeCanteenValue(value) {
   return String(value || "").trim().toLowerCase() === "yes" ? "yes" : "no";
 }
 
+function shouldSendAdmissionSms(formLike) {
+  const propertyType = String(
+    formLike?.propertyType || formLike?.trackerType || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return propertyType !== "room" && propertyType !== "shop";
+}
+
 // Always assign SrNo on server using shared helper
 async function createFormWithSrNo(rest, session) {
   const payload = { ...rest };
@@ -307,18 +317,24 @@ async function createWithOptionalInvite(req, res) {
     try {
       await assertBedIsVacant(rest);
       const saved = await createFormWithSrNo(rest, null);
-      let messageStatus = { ok: false, skipped: true, reason: "Not attempted" };
-      try {
-        messageStatus = await sendAdmissionMessage(saved);
-      } catch (error) {
-        console.error("MSG91 admission message failed:", error?.data || error?.message || error);
-        messageStatus = {
-          ok: false,
-          skipped: false,
-          reason: error?.message || "MSG91 send failed",
-          data: error?.data || null,
-          status: error?.status || null,
-        };
+      let messageStatus = {
+        ok: false,
+        skipped: true,
+        reason: "SMS disabled for room/shop admissions",
+      };
+      if (shouldSendAdmissionSms(saved)) {
+        try {
+          messageStatus = await sendAdmissionMessage(saved);
+        } catch (error) {
+          console.error("MSG91 admission message failed:", error?.data || error?.message || error);
+          messageStatus = {
+            ok: false,
+            skipped: false,
+            reason: error?.message || "MSG91 send failed",
+            data: error?.data || null,
+            status: error?.status || null,
+          };
+        }
       }
 
       const payload = saved.toObject ? saved.toObject() : saved;
@@ -389,18 +405,24 @@ async function createWithOptionalInvite(req, res) {
       }
     }
 
-    let messageStatus = { ok: false, skipped: true, reason: "Not attempted" };
-    try {
-      messageStatus = await sendAdmissionMessage(created);
-    } catch (error) {
-      console.error("MSG91 admission message failed:", error?.data || error?.message || error);
-      messageStatus = {
-        ok: false,
-        skipped: false,
-        reason: error?.message || "MSG91 send failed",
-        data: error?.data || null,
-        status: error?.status || null,
-      };
+    let messageStatus = {
+      ok: false,
+      skipped: true,
+      reason: "SMS disabled for room/shop admissions",
+    };
+    if (shouldSendAdmissionSms(created)) {
+      try {
+        messageStatus = await sendAdmissionMessage(created);
+      } catch (error) {
+        console.error("MSG91 admission message failed:", error?.data || error?.message || error);
+        messageStatus = {
+          ok: false,
+          skipped: false,
+          reason: error?.message || "MSG91 send failed",
+          data: error?.data || null,
+          status: error?.status || null,
+        };
+      }
     }
 
     const payload = created?.toObject ? created.toObject() : created;

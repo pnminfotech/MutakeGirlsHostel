@@ -270,7 +270,7 @@ function getTenantIntakePath() {
     process.env.PUBLIC_URL ||
     process.env.FRONTEND_BASENAME ||
     process.env.APP_BASENAME ||
-    "/hosteldemo"
+    "/mutakegirlshostel"
   ).trim();
 
   const basePath =
